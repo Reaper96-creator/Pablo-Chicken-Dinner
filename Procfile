@@ -1,2 +1,3 @@
-Delete file (checkbox lub opcja w commit)
+worker: python main.py
+
 
