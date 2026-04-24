@@ -7,7 +7,7 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 PUBG_API_KEY = os.getenv("PUBG_API_KEY")
 CHANNEL_ID = 123456789012345678
 
-PLAYERS = ["Nick1","Nick2"]
+PLAYERS = ["xxXx_Reaper_xXxx","gosiaa_95","Czajurka","iamwojteak","Szaki_71","TikTok--RoMi","BOBER_POS","Stiven01_","Dariusz_-_"]
 
 HEADERS = {
     "Authorization": f"Bearer {PUBG_API_KEY}",
