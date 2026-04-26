@@ -1,3 +1,4 @@
+print("API KEY:", PUBG_API_KEY)
 import discord
 from discord.ext import tasks
 import requests
