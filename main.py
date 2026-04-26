@@ -1,4 +1,4 @@
-print("API KEY:", PUBG_API_KEY)
+
 import discord
 from discord.ext import tasks
 import requests
@@ -10,6 +10,7 @@ import os
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 PUBG_API_KEY = os.getenv("PUBG_API_KEY")
+print("API KEY:", PUBG_API_KEY)
 
 CHANNEL_ID = 1497295033169219724
 PLAYERS = ["xxXx_Reaper_xXxx","gosiaa_95","Czajurka","iamwojteak","Szaki_71","BOBER_POS","Stiven01_","Dariusz_-_"]
