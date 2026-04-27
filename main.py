@@ -9,14 +9,13 @@ import os
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 PUBG_API_KEY = os.getenv("PUBG_API_KEY")
-print("API KEY:", PUBG_API_KEY)
 
 CHANNEL_ID = 1497295033169219724
+
 PLAYERS = ["xxXx_Reaper_xXxx","gosiaa_95","Czajurka","iamwojteak","Szaki_71","BOBER_POS","Stiven01_","Dariusz_-_"]
 
-SHARD = "steam"  
-
-CHECK_INTERVAL = 120 
+SHARD = "steam"
+CHECK_INTERVAL = 120
 
 # =========================
 
@@ -28,6 +27,16 @@ HEADERS = {
 client = discord.Client(intents=discord.Intents.default())
 
 checked_matches = set()
+
+MAPS = {
+    "Baltic_Main": "Erangel",
+    "Desert_Main": "Miramar",
+    "Savage_Main": "Sanhok",
+    "DihorOtok_Main": "Vikendi",
+    "Tiger_Main": "Taego",
+    "Heaven_Main": "Paramo",
+    "Kiki_Main": "Deston"
+}
 
 
 def get_player(name):
@@ -87,7 +96,10 @@ def parse_team(match_data, player_name):
                             "name": s["name"],
                             "kills": s["kills"],
                             "assists": s["assists"],
-                            "damage": int(s["damageDealt"])
+                            "damage": int(s["damageDealt"]),
+                            "headshots": s.get("headshotKills", 0),
+                            "longest_kill": round(s.get("longestKill", 0), 1),
+                            "revives": s.get("revives", 0)
                         })
 
                 return rank, team
@@ -121,9 +133,14 @@ async def check_matches():
                 if not match_data:
                     continue
 
+                map_name = match_data["data"]["attributes"]["mapName"]
+                game_mode = match_data["data"]["attributes"]["gameMode"]
+
+                map_name = MAPS.get(map_name, map_name)
+
                 rank, team = parse_team(match_data, player)
 
-                if rank == 1 :
+                if rank == 1:
                     print("🏆 WIN WYKRYTY!")
 
                     checked_matches.add(match_id)
@@ -136,17 +153,27 @@ async def check_matches():
 
                     team.sort(key=lambda x: x["damage"], reverse=True)
 
+                    total_kills = sum(p["kills"] for p in team)
+                    max_kill = max(p["longest_kill"] for p in team)
+
                     embed = discord.Embed(
                         title="🏆 WINNER WINNER CHICKEN DINNER!",
                         description=f"🔥 Drużyna gracza {player} wygrała mecz!",
                         color=0xf1c40f
                     )
 
-                    total_kills = sum(p["kills"] for p in team)
+                    embed.add_field(name="🗺️ Mapa", value=map_name, inline=True)
+                    embed.add_field(name="🎮 Tryb", value=game_mode, inline=True)
 
                     embed.add_field(
                         name="📊 Statystyki drużyny",
                         value=f"🔪 Kille: {total_kills}",
+                        inline=False
+                    )
+
+                    embed.add_field(
+                        name="🎯 Najdalsze zabójstwo",
+                        value=f"{max_kill} m",
                         inline=False
                     )
 
@@ -155,7 +182,7 @@ async def check_matches():
 
                         embed.add_field(
                             name=f"{p['name']} {tag}",
-                            value=f"K: {p['kills']} | A: {p['assists']} | DMG: {p['damage']}",
+                            value=f"K: {p['kills']} | A: {p['assists']} | HS: {p['headshots']} | REV: {p['revives']} | DMG: {p['damage']} | 🎯 {p['longest_kill']}m",
                             inline=False
                         )
 
@@ -169,13 +196,12 @@ async def check_matches():
 async def on_ready():
     print(f"✅ BOT ZALOGOWANY JAKO {client.user}")
 
-    # 🔥 TEST NA START
     channel = client.get_channel(CHANNEL_ID)
 
     if channel:
         await channel.send("✅ BOT DZIAŁA I JEST ONLINE")
     else:
-        print("❌ NIE ZNALEZIONO KANAŁU - SPRAWDŹ CHANNEL_ID")
+        print("❌ NIE ZNALEZIONO KANAŁU")
 
     check_matches.start()
 
