@@ -123,7 +123,7 @@ async def check_matches():
 
                 rank, team = parse_team(match_data, player)
 
-                if True:
+                if rank == 1 :
                     print("🏆 WIN WYKRYTY!")
 
                     checked_matches.add(match_id)
