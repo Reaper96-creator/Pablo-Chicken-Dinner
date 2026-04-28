@@ -12,7 +12,7 @@ PUBG_API_KEY = os.getenv("PUBG_API_KEY")
 
 CHANNEL_ID = 1497295033169219724
 
-PLAYERS = ["xXx_ZibeX_PL_xXx","Aserocik","xxXx_Reaper_xXxx","gosiaa_95","Czajurka","iamwojteak","Szaki_71","BOBER_POS","Stiven01_","Dariusz_-_"]
+PLAYERS = ["xXx_ZibeX_PL_xXx","Aserocik","xxXx_Reaper_xXxx","gosiaa_95","Czajurka","iamwojteak","Szaki_71","BOBER_POS","Stiven01_","Dariusz_-_","ACEMUNDPL","AvangardoPoland","BabciazZusu","fedek1"]
 
 SHARD = "steam"
 CHECK_INTERVAL = 120
