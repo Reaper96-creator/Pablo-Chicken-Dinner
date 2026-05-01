@@ -166,7 +166,7 @@ async def check_matches():
 
             if rank == 1:
     channel = client.get_channel(CHANNEL_ID)
-    if channel:
+    if channel:1497295033169219724
 
         team.sort(key=lambda x: x["damage"], reverse=True)
 
