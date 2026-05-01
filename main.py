@@ -1,32 +1,29 @@
-import discord
+                import discord
 from discord.ext import tasks
 import requests
 import os
-
-# =========================
-# 🔧 KONFIGURACJA
-# =========================
+import asyncio
+import json
+from datetime import datetime
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 PUBG_API_KEY = os.getenv("PUBG_API_KEY")
 
 CHANNEL_ID = 1497295033169219724
+MVP_ROLE_ID = 123456789012345678  # 🔥 WSTAW ID ROLI MVP
 
 PLAYERS = ["xXx_ZibeX_PL_xXx","Aserocik","xxXx_Reaper_xXxx","gosiaa_95","Czajurka","iamwojteak","Szaki_71","BOBER_POS","Stiven01_","Dariusz_-_","ACEMUNDPL","AvangardoPoland","BabciazZusu","fedek1","DarekCSW","Hangman1990","Hangman90","hogis320","karolr92","karpiu223","kejku","Konrad_Ak47","LowcaBobrow","lucek-23","Mannia1991","Misiaczek89","Radeusz","Rodriguez_Lopez","SEBIX777","SIWYDYM91_","StaryKefir","SuperLosiek","Witruoz","Zablakany69"]
 
-SHARD = "steam"
-CHECK_INTERVAL = 120
-
-# =========================
+CHECK_INTERVAL = 300
 
 HEADERS = {
     "Authorization": f"Bearer {PUBG_API_KEY}",
     "Accept": "application/vnd.api+json"
 }
 
-client = discord.Client(intents=discord.Intents.default())
-
-checked_matches = set()
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
 
 MAPS = {
     "Baltic_Main": "Erangel",
@@ -38,33 +35,64 @@ MAPS = {
     "Kiki_Main": "Deston"
 }
 
+# =========================
+# 📂 PLIKI
+# =========================
+
+def load_json(file):
+    try:
+        with open(file, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_json(file, data):
+    with open(file, "w") as f:
+        json.dump(data, f)
+
+last_matches = load_json("matches.json")
+player_stats = load_json("stats.json")
+
+def get_week():
+    return datetime.utcnow().strftime("%Y-%U")
+
+# =========================
+# 🔎 API
+# =========================
 
 def get_player(name):
-    url = f"https://api.pubg.com/shards/{SHARD}/players?filter[playerNames]={name}"
-    r = requests.get(url, headers=HEADERS)
+    for shard in ["steam", "console"]:
+        try:
+            url = f"https://api.pubg.com/shards/{shard}/players?filter[playerNames]={name}"
+            r = requests.get(url, headers=HEADERS)
 
-    if r.status_code != 200:
-        print("BŁĄD API PLAYER:", r.text)
-        return None
+            if r.status_code == 200:
+                data = r.json()["data"]
+                if data:
+                    return data[0], shard
+        except:
+            pass
 
-    data = r.json()["data"]
-    if not data:
-        print("NIE ZNALEZIONO GRACZA:", name)
-        return None
-
-    return data[0]
+    print("❌ NIE ZNALEZIONO:", name)
+    return None, None
 
 
-def get_match(match_id):
-    url = f"https://api.pubg.com/shards/{SHARD}/matches/{match_id}"
-    r = requests.get(url, headers=HEADERS)
+def get_match(match_id, shard):
+    try:
+        url = f"https://api.pubg.com/shards/{shard}/matches/{match_id}"
+        r = requests.get(url, headers=HEADERS)
 
-    if r.status_code != 200:
-        print("BŁĄD API MATCH:", r.text)
-        return None
+        if r.status_code == 200:
+            return r.json()
+    except:
+        pass
 
-    return r.json()
+    return None
 
+
+# =========================
+# 📊 PARSOWANIE
+# =========================
 
 def parse_team(match_data, player_name):
     included = match_data["included"]
@@ -77,7 +105,6 @@ def parse_team(match_data, player_name):
                 player_id = i["id"]
 
     if not player_id:
-        print("NIE ZNALEZIONO ID GRACZA:", player_name)
         return None, []
 
     for i in included:
@@ -95,115 +122,139 @@ def parse_team(match_data, player_name):
                         team.append({
                             "name": s["name"],
                             "kills": s["kills"],
-                            "assists": s["assists"],
-                            "damage": int(s["damageDealt"]),
-                            "headshots": s.get("headshotKills", 0),
-                            "longest_kill": round(s.get("longestKill", 0), 1),
-                            "revives": s.get("revives", 0)
+                            "damage": int(s["damageDealt"])
                         })
 
                 return rank, team
 
     return None, []
 
+# =========================
+# 🏆 MVP SYSTEM
+# =========================
+
+async def check_mvp():
+    week = get_week()
+
+    ranking = []
+
+    for player, weeks in player_stats.items():
+        if week in weeks:
+            s = weeks[week]
+            score = s["kills"] + s["wins"] * 10
+            ranking.append((player, score))
+
+    if not ranking:
+        return
+
+    winner = sorted(ranking, key=lambda x: x[1], reverse=True)[0][0]
+
+    channel = client.get_channel(CHANNEL_ID)
+    guild = channel.guild
+    role = guild.get_role(MVP_ROLE_ID)
+
+    for member in guild.members:
+        if role in member.roles:
+            await member.remove_roles(role)
+
+    for member in guild.members:
+        if member.name.lower() == winner.lower():
+            await member.add_roles(role)
+
+    await channel.send(f"🏆 MVP TYGODNIA: {winner}")
+
+# =========================
+# 🔁 GŁÓWNA PĘTLA
+# =========================
 
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def check_matches():
-    print("🔍 SPRAWDZAM MECZE...")
+    print("🔍 PRO CHECK...")
 
     for player in PLAYERS:
         try:
-            print("➡️ GRACZ:", player)
-
-            p = get_player(player)
+            p, shard = get_player(player)
             if not p:
                 continue
 
-            matches = p["relationships"]["matches"]["data"][:5]
+            latest = p["relationships"]["matches"]["data"][0]["id"]
 
-            print("📦 ZNALEZIONE MECZE:", len(matches))
+            if last_matches.get(player) == latest:
+                continue
 
-            for m in matches:
-                match_id = m["id"]
+            last_matches[player] = latest
+            save_json("matches.json", last_matches)
 
-                if match_id in checked_matches:
-                    continue
+            match = get_match(latest, shard)
+            if not match:
+                continue
 
-                match_data = get_match(match_id)
-                if not match_data:
-                    continue
+            rank, team = parse_team(match, player)
+            if not team:
+                continue
 
-                map_name = match_data["data"]["attributes"]["mapName"]
-                game_mode = match_data["data"]["attributes"]["gameMode"]
+            week = get_week()
 
-                map_name = MAPS.get(map_name, map_name)
+            if player not in player_stats:
+                player_stats[player] = {}
 
-                rank, team = parse_team(match_data, player)
+            if week not in player_stats[player]:
+                player_stats[player][week] = {"wins":0,"kills":0,"damage":0}
 
-                if rank == 1:
-                    print("🏆 WIN WYKRYTY!")
+            for t in team:
+                if t["name"].lower() == player.lower():
+                    player_stats[player][week]["kills"] += t["kills"]
+                    player_stats[player][week]["damage"] += t["damage"]
 
-                    checked_matches.add(match_id)
+                    if rank == 1:
+                        player_stats[player][week]["wins"] += 1
 
-                    channel = client.get_channel(CHANNEL_ID)
+            save_json("stats.json", player_stats)
 
-                    if not channel:
-                        print("❌ NIE ZNALEZIONO KANAŁU")
-                        return
+            if rank == 1:
+                channel = client.get_channel(CHANNEL_ID)
+                await channel.send(f"🏆 {player} wygrał mecz!")
 
-                    team.sort(key=lambda x: x["damage"], reverse=True)
-
-                    total_kills = sum(p["kills"] for p in team)
-                    max_kill = max(p["longest_kill"] for p in team)
-
-                    embed = discord.Embed(
-                        title="🏆 WINNER WINNER CHICKEN DINNER!",
-                        description=f"🔥 Drużyna gracza {player} wygrała mecz!",
-                        color=0xf1c40f
-                    )
-
-                    embed.add_field(name="🗺️ Mapa", value=map_name, inline=True)
-                    embed.add_field(name="🎮 Tryb", value=game_mode, inline=True)
-
-                    embed.add_field(
-                        name="📊 Statystyki drużyny",
-                        value=f"🔪 Kille: {total_kills}",
-                        inline=False
-                    )
-
-                    embed.add_field(
-                        name="🎯 Najdalsze zabójstwo",
-                        value=f"{max_kill} m",
-                        inline=False
-                    )
-
-                    for i, p in enumerate(team):
-                        tag = "🔥 MVP" if i == 0 else ""
-
-                        embed.add_field(
-                            name=f"{p['name']} {tag}",
-                            value=f"K: {p['kills']} | A: {p['assists']} | HS: {p['headshots']} | REV: {p['revives']} | DMG: {p['damage']} | 🎯 {p['longest_kill']}m",
-                            inline=False
-                        )
-
-                    await channel.send(embed=embed)
+            await asyncio.sleep(1)
 
         except Exception as e:
             print("❌ ERROR:", e)
 
+# =========================
+# 💬 KOMENDY
+# =========================
+
+@client.event
+async def on_message(msg):
+    if msg.author == client.user:
+        return
+
+    if msg.content == "!top":
+        ranking = []
+
+        for p, weeks in player_stats.items():
+            total = sum(w["kills"] for w in weeks.values())
+            ranking.append((p, total))
+
+        ranking.sort(key=lambda x: x[1], reverse=True)
+
+        text = "🏆 TOP KLANU:\n\n"
+        for i, (p, k) in enumerate(ranking[:10],1):
+            text += f"{i}. {p} - {k} kills\n"
+
+        await msg.channel.send(text)
+
+# =========================
+
+@tasks.loop(hours=24)
+async def weekly():
+    await check_mvp()
 
 @client.event
 async def on_ready():
-    print(f"✅ BOT ZALOGOWANY JAKO {client.user}")
-
-    channel = client.get_channel(CHANNEL_ID)
-
-    if channel:
-        await channel.send("✅ BOT DZIAŁA I JEST ONLINE")
-    else:
-        print("❌ NIE ZNALEZIONO KANAŁU")
+    print("🚀 BOT PRO ONLINE")
 
     check_matches.start()
-
+    weekly.start()
 
 client.run(DISCORD_TOKEN)
