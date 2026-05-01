@@ -165,9 +165,24 @@ async def check_matches():
             save_json("stats.json", player_stats)
 
             if rank == 1:
-                channel = client.get_channel(CHANNEL_ID)
-                if channel:
-                    await channel.send(f"🏆 {player} wygrał mecz!")
+    channel = client.get_channel(CHANNEL_ID)
+    if channel:
+
+        team.sort(key=lambda x: x["damage"], reverse=True)
+
+        total_kills = sum(p["kills"] for p in team)
+        total_damage = sum(p["damage"] for p in team)
+
+        text = f"🏆 WINNER WINNER CHICKEN DINNER!\n"
+        text += f"👤 Gracz: {player}\n\n"
+        text += f"🔪 Kille drużyny: {total_kills}\n"
+        text += f"💥 Damage drużyny: {total_damage}\n\n"
+
+        for i, p in enumerate(team):
+            tag = "🔥 MVP" if i == 0 else ""
+            text += f"{p['name']} {tag} → K:{p['kills']} DMG:{p['damage']}\n"
+
+        await channel.send(text)
 
             await asyncio.sleep(1)
 
