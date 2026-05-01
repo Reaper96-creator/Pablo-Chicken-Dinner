@@ -11,7 +11,6 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 PUBG_API_KEY = os.getenv("PUBG_API_KEY")
 
 CHANNEL_ID = 1497295033169219724
-MVP_ROLE_ID = 123456789012345678  # 🔥 WSTAW ID ROLI MVP
 
 PLAYERS = ["xXx_ZibeX_PL_xXx","Aserocik","xxXx_Reaper_xXxx","gosiaa_95","Czajurka","iamwojteak","Szaki_71","BOBER_POS","Stiven01_","Dariusz_-_","ACEMUNDPL","AvangardoPoland","BabciazZusu","fedek1","DarekCSW","Hangman1990","Hangman90","hogis320","karolr92","karpiu223","kejku","Konrad_Ak47","LowcaBobrow","lucek-23","Mannia1991","Misiaczek89","Radeusz","Rodriguez_Lopez","SEBIX777","SIWYDYM91_","StaryKefir","SuperLosiek","Witruoz","Zablakany69"]
 
@@ -23,12 +22,11 @@ HEADERS = {
 }
 
 intents = discord.Intents.default()
-intents.message_content = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
 # =========================
-# 📂 PLIKI AUTO
+# 📂 PLIKI
 # =========================
 
 def load_json(file):
@@ -119,39 +117,6 @@ def parse_team(match_data, player_name):
     return None, []
 
 # =========================
-# 🏆 MVP
-# =========================
-
-async def check_mvp():
-    week = get_week()
-    ranking = []
-
-    for player, weeks in player_stats.items():
-        if week in weeks:
-            s = weeks[week]
-            score = s["kills"] + s["wins"] * 10
-            ranking.append((player, score))
-
-    if not ranking:
-        return
-
-    winner = sorted(ranking, key=lambda x: x[1], reverse=True)[0][0]
-
-    channel = client.get_channel(CHANNEL_ID)
-    guild = channel.guild
-    role = guild.get_role(MVP_ROLE_ID)
-
-    for member in guild.members:
-        if role in member.roles:
-            await member.remove_roles(role)
-
-    for member in guild.members:
-        if member.name.lower() == winner.lower():
-            await member.add_roles(role)
-
-    await channel.send(f"🏆 MVP TYGODNIA: {winner}")
-
-# =========================
 # 🔁 MATCH CHECK
 # =========================
 
@@ -201,7 +166,8 @@ async def check_matches():
 
             if rank == 1:
                 channel = client.get_channel(CHANNEL_ID)
-                await channel.send(f"🏆 {player} wygrał mecz!")
+                if channel:
+                    await channel.send(f"🏆 {player} wygrał mecz!")
 
             await asyncio.sleep(1)
 
@@ -209,7 +175,7 @@ async def check_matches():
             print("❌ ERROR:", e)
 
 # =========================
-# 💬 SLASH KOMENDY
+# 💬 SLASH
 # =========================
 
 @tree.command(name="top", description="Ranking klanu")
@@ -242,4 +208,23 @@ async def stats(interaction: discord.Interaction, nick: str):
         if player.lower() == nick:
             total_kills = sum(w["kills"] for w in weeks.values())
             total_wins = sum(w["wins"] for w in weeks.values())
-            total_dmg = sum(w["damage
+            total_dmg = sum(w["damage"] for w in weeks.values())
+
+            await interaction.response.send_message(
+                f"📊 {player}\n🏆 {total_wins} winów\n🔪 {total_kills} killi\n💥 {total_dmg} dmg"
+            )
+            return
+
+    await interaction.response.send_message("❌ Nie znaleziono gracza")
+
+# =========================
+
+@client.event
+async def on_ready():
+    print("🚀 BOT ONLINE")
+
+    await tree.sync()
+
+    check_matches.start()
+
+client.run(DISCORD_TOKEN)
