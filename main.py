@@ -1,5 +1,6 @@
-                import discord
+import discord
 from discord.ext import tasks
+from discord import app_commands
 import requests
 import os
 import asyncio
@@ -24,27 +25,18 @@ HEADERS = {
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
-
-MAPS = {
-    "Baltic_Main": "Erangel",
-    "Desert_Main": "Miramar",
-    "Savage_Main": "Sanhok",
-    "DihorOtok_Main": "Vikendi",
-    "Tiger_Main": "Taego",
-    "Heaven_Main": "Paramo",
-    "Kiki_Main": "Deston"
-}
+tree = app_commands.CommandTree(client)
 
 # =========================
-# 📂 PLIKI
+# 📂 PLIKI AUTO
 # =========================
 
 def load_json(file):
-    try:
-        with open(file, "r") as f:
-            return json.load(f)
-    except:
-        return {}
+    if not os.path.exists(file):
+        with open(file, "w") as f:
+            json.dump({}, f)
+    with open(file, "r") as f:
+        return json.load(f)
 
 def save_json(file, data):
     with open(file, "w") as f:
@@ -89,9 +81,6 @@ def get_match(match_id, shard):
 
     return None
 
-
-# =========================
-# 📊 PARSOWANIE
 # =========================
 
 def parse_team(match_data, player_name):
@@ -130,12 +119,11 @@ def parse_team(match_data, player_name):
     return None, []
 
 # =========================
-# 🏆 MVP SYSTEM
+# 🏆 MVP
 # =========================
 
 async def check_mvp():
     week = get_week()
-
     ranking = []
 
     for player, weeks in player_stats.items():
@@ -164,12 +152,12 @@ async def check_mvp():
     await channel.send(f"🏆 MVP TYGODNIA: {winner}")
 
 # =========================
-# 🔁 GŁÓWNA PĘTLA
+# 🔁 MATCH CHECK
 # =========================
 
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def check_matches():
-    print("🔍 PRO CHECK...")
+    print("🔍 CHECK...")
 
     for player in PLAYERS:
         try:
@@ -221,40 +209,37 @@ async def check_matches():
             print("❌ ERROR:", e)
 
 # =========================
-# 💬 KOMENDY
+# 💬 SLASH KOMENDY
 # =========================
 
-@client.event
-async def on_message(msg):
-    if msg.author == client.user:
+@tree.command(name="top", description="Ranking klanu")
+async def top(interaction: discord.Interaction):
+    ranking = []
+
+    for p, weeks in player_stats.items():
+        total = sum(w["kills"] for w in weeks.values())
+        ranking.append((p, total))
+
+    ranking.sort(key=lambda x: x[1], reverse=True)
+
+    if not ranking:
+        await interaction.response.send_message("Brak danych 😢")
         return
 
-    if msg.content == "!top":
-        ranking = []
+    text = "🏆 TOP KLANU:\n\n"
 
-        for p, weeks in player_stats.items():
-            total = sum(w["kills"] for w in weeks.values())
-            ranking.append((p, total))
+    for i, (p, k) in enumerate(ranking[:10], 1):
+        text += f"{i}. {p} - {k} kills\n"
 
-        ranking.sort(key=lambda x: x[1], reverse=True)
+    await interaction.response.send_message(text)
 
-        text = "🏆 TOP KLANU:\n\n"
-        for i, (p, k) in enumerate(ranking[:10],1):
-            text += f"{i}. {p} - {k} kills\n"
 
-        await msg.channel.send(text)
+@tree.command(name="stats", description="Statystyki gracza")
+async def stats(interaction: discord.Interaction, nick: str):
+    nick = nick.lower()
 
-# =========================
-
-@tasks.loop(hours=24)
-async def weekly():
-    await check_mvp()
-
-@client.event
-async def on_ready():
-    print("🚀 BOT PRO ONLINE")
-
-    check_matches.start()
-    weekly.start()
-
-client.run(DISCORD_TOKEN)
+    for player, weeks in player_stats.items():
+        if player.lower() == nick:
+            total_kills = sum(w["kills"] for w in weeks.values())
+            total_wins = sum(w["wins"] for w in weeks.values())
+            total_dmg = sum(w["damage
