@@ -17,7 +17,7 @@ PLAYERS = [
     "karolr92","karpiu223","kejku","Konrad_Ak47","LowcaBobrow",
     "lucek-23","Mannia1991","Misiaczek89","Radeusz",
     "Rodriguez_Lopez","SEBIX777","SIWYDYM91_","StaryKefir",
-    "SuperLosiek","Zablakany69"
+    "SuperLosiek","Zablakany69","Mader81","Fabo84PL"
 ]
 
 CHECK_INTERVAL = 120
